@@ -15,6 +15,7 @@
       --accent: #6ea8fe;
       --accent-2: #8ef0c9;
       --danger: #ff7b7b;
+      --warn: #ffd36e;
       --shadow: 0 10px 30px rgba(0,0,0,.25);
     }
     * { box-sizing: border-box; }
@@ -191,12 +192,6 @@
     tbody tr:hover { background: rgba(255,255,255,.04); }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
     .muted { color: var(--muted); }
-    .hint {
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.6;
-      margin-top: 10px;
-    }
     .status {
       margin-top: 10px;
       padding: 12px;
@@ -205,9 +200,21 @@
       border: 1px dashed var(--line);
       line-height: 1.6;
       font-size: 13px;
-      min-height: 92px;
+      min-height: 104px;
       white-space: pre-wrap;
     }
+    .cf-alert {
+      display: none;
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 211, 110, .35);
+      background: rgba(255, 211, 110, .08);
+      color: #ffe7a8;
+      line-height: 1.7;
+      font-size: 13px;
+    }
+    .cf-alert.show { display: block; }
     .pill {
       display: inline-block;
       padding: 2px 9px;
@@ -236,10 +243,10 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="title">Flamy 排行榜批量提取 <span class="pill">代理版</span></div>
+    <div class="title">Flamy 排行榜批量提取 <span class="pill">CF检测版</span></div>
     <div class="sub">
-      已改为通过 <b>/api/proxy</b> 代理请求，避免前端直接请求 api.flamy.gg 触发 CORS。<br>
-      支持批量翻页、地址筛选、指定周数过滤、交易量与积分查看、导出 CSV、复制 JSON。
+      已加入 Cloudflare 拦截检测。<br>
+      如果上游返回的不是 JSON，而是验证页，前端会直接提示“被 Cloudflare 拦截”，不会再误判成正常数据。
     </div>
 
     <div class="grid">
@@ -309,13 +316,15 @@
         </div>
 
         <div class="small">
-          备注：<br>
-          1）接口限制单次最大 100 条，所以网页会自动翻页。<br>
-          2）前端不再直连第三方接口，而是通过你的站点 /api/proxy 转发。<br>
-          3）GitHub 负责存代码，Vercel 负责运行这个代理。
+          说明：<br>
+          1）接口单次最多 100 条，所以会自动翻页。<br>
+          2）如果服务端代理拿到的是 Cloudflare 验证页，页面会直接提示。<br>
+          3）这版解决的是“识别并提示”，不是“绕过 Cloudflare”。
         </div>
 
         <div class="status" id="status">等待开始...</div>
+
+        <div class="cf-alert" id="cfAlert"></div>
       </div>
 
       <div>
@@ -411,7 +420,8 @@
       status: document.getElementById('status'),
       keyword: document.getElementById('keyword'),
       applyFilterBtn: document.getElementById('applyFilterBtn'),
-      resetFilterBtn: document.getElementById('resetFilterBtn')
+      resetFilterBtn: document.getElementById('resetFilterBtn'),
+      cfAlert: document.getElementById('cfAlert')
     };
 
     let allRows = [];
@@ -429,6 +439,16 @@
 
     function setStatus(text) {
       els.status.textContent = text;
+    }
+
+    function showCfAlert(text) {
+      els.cfAlert.textContent = text;
+      els.cfAlert.classList.add('show');
+    }
+
+    function hideCfAlert() {
+      els.cfAlert.textContent = '';
+      els.cfAlert.classList.remove('show');
     }
 
     function normalizeAddr(v) {
@@ -512,9 +532,14 @@
       });
 
       const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        throw new Error(data?.message || `HTTP ${res.status}`);
+        const err = new Error(data?.message || `HTTP ${res.status}`);
+        err.code = data?.code || 'REQUEST_FAILED';
+        err.preview = data?.preview || '';
+        throw err;
       }
+
       return data;
     }
 
@@ -543,6 +568,7 @@
       allRows = [];
       filteredRows = [];
       lastMeta = { week: '-', roundId: '-' };
+      hideCfAlert();
       renderTable([]);
       updateStats([], 0, 0, Number(els.totalCount.value || 0));
 
@@ -612,7 +638,20 @@
         }
       } catch (err) {
         console.error(err);
-        setStatus('抓取失败：\n' + (err?.message || String(err)));
+
+        if (err.code === 'CLOUDFLARE_BLOCKED') {
+          showCfAlert(
+            '检测到上游返回的是 Cloudflare 验证页，不是真实排行榜 JSON。\n' +
+            '说明当前代理请求被风控拦截了。\n\n' +
+            '这不是参数错误，也不是前端解析错误，而是目标站点要求先通过浏览器验证。'
+          );
+        }
+
+        setStatus(
+          '抓取失败：\n' +
+          (err?.message || String(err)) +
+          (err?.preview ? `\n\n返回预览：\n${err.preview}` : '')
+        );
       }
     }
 
@@ -651,6 +690,7 @@
     }
 
     function refreshFilter() {
+      hideCfAlert();
       filteredRows = applyAllFilters(allRows);
       renderTable(filteredRows);
       updateStats(
