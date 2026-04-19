@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flamy 排行榜批量提取</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #131a2a;
+      --panel-2: #1a2337;
+      --text: #eaf0ff;
+      --muted: #9fb0d1;
+      --line: rgba(255,255,255,.08);
+      --accent: #6ea8fe;
+      --accent-2: #8ef0c9;
+      --danger: #ff7b7b;
+      --shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(110,168,254,.16), transparent 30%),
+        radial-gradient(circle at top left, rgba(142,240,201,.10), transparent 24%),
+        var(--bg);
+      color: var(--text);
+    }
+    .wrap {
+      max-width: 1380px;
+      margin: 0 auto;
+      padding: 28px 16px 40px;
+    }
+    .title {
+      font-size: 28px;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+    .sub {
+      color: var(--muted);
+      margin-bottom: 22px;
+      line-height: 1.7;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 18px;
+    }
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.02));
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+    }
+    .panel { padding: 18px; }
+    .panel h2 { margin: 0 0 14px; font-size: 18px; }
+    .field { margin-bottom: 14px; }
+    label {
+      display: block;
+      margin-bottom: 6px;
+      color: #c9d7f5;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    input, select, textarea, button {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 12px 13px;
+      font-size: 14px;
+      outline: none;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: rgba(110,168,254,.65);
+      box-shadow: 0 0 0 3px rgba(110,168,254,.14);
+    }
+    textarea { min-height: 110px; resize: vertical; font-family: inherit; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+    .btns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 8px;
+    }
+    button {
+      cursor: pointer;
+      font-weight: 700;
+      transition: .18s ease;
+    }
+    button:hover { transform: translateY(-1px); }
+    .primary {
+      background: linear-gradient(135deg, var(--accent), #88b7ff);
+      color: #08111f;
+      border: none;
+    }
+    .ghost { background: transparent; }
+    .good {
+      background: linear-gradient(135deg, var(--accent-2), #9ef7d7);
+      color: #06271d;
+      border: none;
+    }
+    .danger {
+      background: linear-gradient(135deg, #ff8c8c, #ffb3b3);
+      color: #2a0909;
+      border: none;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .stat {
+      padding: 14px;
+      border-radius: 16px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+    }
+    .stat .k {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    .stat .v {
+      font-size: 22px;
+      font-weight: 800;
+      word-break: break-all;
+    }
+    .progress-box {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+      margin-bottom: 14px;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.08);
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      transition: width .2s ease;
+    }
+    .progress-text {
+      font-size: 13px;
+      color: var(--muted);
+      min-height: 18px;
+    }
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .toolbar input { max-width: 260px; }
+    .table-wrap {
+      overflow: auto;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 1280px;
+      background: rgba(255,255,255,.015);
+    }
+    th, td {
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    th {
+      position: sticky;
+      top: 0;
+      background: #101829;
+      z-index: 2;
+      color: #dce7ff;
+    }
+    tbody tr:hover { background: rgba(255,255,255,.04); }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .muted { color: var(--muted); }
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+      margin-top: 10px;
+    }
+    .status {
+      margin-top: 10px;
+      padding: 12px;
+      border-radius: 12px;
+      background: rgba(255,255,255,.03);
+      border: 1px dashed var(--line);
+      line-height: 1.6;
+      font-size: 13px;
+      min-height: 92px;
+      white-space: pre-wrap;
+    }
+    .pill {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: rgba(110,168,254,.16);
+      color: #cfe0ff;
+      margin-left: 8px;
+    }
+    .small {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 8px;
+      line-height: 1.6;
+    }
+    @media (max-width: 1080px) {
+      .grid { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 640px) {
+      .row, .row-3, .btns { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: 1fr; }
+      .title { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="title">Flamy 排行榜批量提取 <span class="pill">代理版</span></div>
+    <div class="sub">
+      已改为通过 <b>/api/proxy</b> 代理请求，避免前端直接请求 api.flamy.gg 触发 CORS。<br>
+      支持批量翻页、地址筛选、指定周数过滤、交易量与积分查看、导出 CSV、复制 JSON。
+    </div>
+
+    <div class="grid">
+      <div class="card panel">
+        <h2>抓取参数</h2>
+
+        <div class="row">
+          <div class="field">
+            <label for="sort">排序方式 sort</label>
+            <select id="sort">
+              <option value="weekly">weekly</option>
+              <option value="total">total</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="perPage">每页抓取数量</label>
+            <input id="perPage" type="number" min="1" max="100" value="100" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="startOffset">起始 offset</label>
+            <input id="startOffset" type="number" min="0" value="0" />
+          </div>
+          <div class="field">
+            <label for="totalCount">总提取条数</label>
+            <input id="totalCount" type="number" min="1" value="1000" />
+          </div>
+        </div>
+
+        <div class="row-3">
+          <div class="field">
+            <label for="delayMs">每页延迟(ms)</label>
+            <input id="delayMs" type="number" min="0" value="120" />
+          </div>
+          <div class="field">
+            <label for="maxPages">最大页数保护</label>
+            <input id="maxPages" type="number" min="1" value="20" />
+          </div>
+          <div class="field">
+            <label for="dedupe">地址去重</label>
+            <select id="dedupe">
+              <option value="yes">是</option>
+              <option value="no">否</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="weekFilter">筛选指定周数（可空）</label>
+          <input id="weekFilter" type="number" min="1" placeholder="例如 17" />
+        </div>
+
+        <div class="field">
+          <label for="addressInput">仅筛选这些地址（每行一个，可空）</label>
+          <textarea id="addressInput" placeholder="0x123...
+0x456...
+0x789..."></textarea>
+        </div>
+
+        <div class="btns">
+          <button class="primary" id="runBtn">开始批量提取</button>
+          <button class="danger" id="stopBtn">停止</button>
+          <button class="good" id="exportBtn">导出 CSV</button>
+          <button class="ghost" id="copyBtn">复制 JSON</button>
+        </div>
+
+        <div class="small">
+          备注：<br>
+          1）接口限制单次最大 100 条，所以网页会自动翻页。<br>
+          2）前端不再直连第三方接口，而是通过你的站点 /api/proxy 转发。<br>
+          3）GitHub 负责存代码，Vercel 负责运行这个代理。
+        </div>
+
+        <div class="status" id="status">等待开始...</div>
+      </div>
+
+      <div>
+        <div class="stats">
+          <div class="stat">
+            <div class="k">结果条数</div>
+            <div class="v" id="fetchedCount">0</div>
+          </div>
+          <div class="stat">
+            <div class="k">抓取页数</div>
+            <div class="v" id="pageCount">0</div>
+          </div>
+          <div class="stat">
+            <div class="k">总交易量 USD</div>
+            <div class="v" id="sumVolume">0</div>
+          </div>
+          <div class="stat">
+            <div class="k">平均周积分</div>
+            <div class="v" id="avgWeekly">0</div>
+          </div>
+          <div class="stat">
+            <div class="k">当前周 week</div>
+            <div class="v" id="currentWeek">-</div>
+          </div>
+        </div>
+
+        <div class="progress-box card">
+          <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+          </div>
+          <div class="progress-text" id="progressText">进度：0%</div>
+        </div>
+
+        <div class="card panel">
+          <div class="toolbar">
+            <input id="keyword" placeholder="筛选 address / name / grade / rank" />
+            <button class="ghost" id="applyFilterBtn" style="max-width:120px;">筛选</button>
+            <button class="ghost" id="resetFilterBtn" style="max-width:120px;">重置</button>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>rank</th>
+                  <th>address</th>
+                  <th>name</th>
+                  <th>totalPoints</th>
+                  <th>weeklyPoints</th>
+                  <th>volumeUsd</th>
+                  <th>grade</th>
+                  <th>ppRank</th>
+                  <th>week</th>
+                  <th>roundId</th>
+                </tr>
+              </thead>
+              <tbody id="tbody">
+                <tr><td colspan="11" class="muted">暂无数据</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const PROXY_PATH = '/api/proxy';
+
+    const els = {
+      sort: document.getElementById('sort'),
+      perPage: document.getElementById('perPage'),
+      startOffset: document.getElementById('startOffset'),
+      totalCount: document.getElementById('totalCount'),
+      delayMs: document.getElementById('delayMs'),
+      maxPages: document.getElementById('maxPages'),
+      dedupe: document.getElementById('dedupe'),
+      weekFilter: document.getElementById('weekFilter'),
+      addressInput: document.getElementById('addressInput'),
+      runBtn: document.getElementById('runBtn'),
+      stopBtn: document.getElementById('stopBtn'),
+      exportBtn: document.getElementById('exportBtn'),
+      copyBtn: document.getElementById('copyBtn'),
+      fetchedCount: document.getElementById('fetchedCount'),
+      pageCount: document.getElementById('pageCount'),
+      sumVolume: document.getElementById('sumVolume'),
+      avgWeekly: document.getElementById('avgWeekly'),
+      currentWeek: document.getElementById('currentWeek'),
+      progressFill: document.getElementById('progressFill'),
+      progressText: document.getElementById('progressText'),
+      tbody: document.getElementById('tbody'),
+      status: document.getElementById('status'),
+      keyword: document.getElementById('keyword'),
+      applyFilterBtn: document.getElementById('applyFilterBtn'),
+      resetFilterBtn: document.getElementById('resetFilterBtn')
+    };
+
+    let allRows = [];
+    let filteredRows = [];
+    let stopFlag = false;
+    let lastMeta = { week: '-', roundId: '-' };
+
+    function fmtNum(n, d = 2) {
+      const x = Number(n || 0);
+      if (!Number.isFinite(x)) return '0';
+      return x.toLocaleString('en-US', { maximumFractionDigits: d });
+    }
+
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    function setStatus(text) {
+      els.status.textContent = text;
+    }
+
+    function normalizeAddr(v) {
+      return String(v || '').trim().toLowerCase();
+    }
+
+    function getAddressSet() {
+      const lines = els.addressInput.value
+        .split('\n')
+        .map(v => normalizeAddr(v))
+        .filter(Boolean);
+      return new Set(lines);
+    }
+
+    function updateStats(rows, pageNum, fetched, target) {
+      const sumVolume = rows.reduce((s, r) => s + Number(r.volumeUsd || 0), 0);
+      const avgWeekly = rows.length ? rows.reduce((s, r) => s + Number(r.weeklyPoints || 0), 0) / rows.length : 0;
+
+      els.fetchedCount.textContent = fmtNum(rows.length, 0);
+      els.pageCount.textContent = fmtNum(pageNum, 0);
+      els.sumVolume.textContent = fmtNum(sumVolume, 2);
+      els.avgWeekly.textContent = fmtNum(avgWeekly, 2);
+      els.currentWeek.textContent = lastMeta.week ?? '-';
+
+      const percent = target > 0 ? Math.min(100, fetched / target * 100) : 0;
+      els.progressFill.style.width = percent.toFixed(2) + '%';
+      els.progressText.textContent = `进度：${percent.toFixed(2)}%（抓到 ${fetched} / 目标 ${target}）`;
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function renderTable(rows) {
+      if (!rows.length) {
+        els.tbody.innerHTML = '<tr><td colspan="11" class="muted">暂无数据</td></tr>';
+        return;
+      }
+
+      els.tbody.innerHTML = rows.map((r, i) => `
+        <tr>
+          <td>${i + 1}</td>
+          <td>${r.rank ?? ''}</td>
+          <td class="mono">${r.address ?? ''}</td>
+          <td>${escapeHtml(r.name ?? '')}</td>
+          <td>${fmtNum(r.totalPoints, 6)}</td>
+          <td>${fmtNum(r.weeklyPoints, 6)}</td>
+          <td>${fmtNum(r.volumeUsd, 2)}</td>
+          <td>${escapeHtml(r.grade ?? '')}</td>
+          <td>${r.ppRank ?? ''}</td>
+          <td>${r.week ?? ''}</td>
+          <td>${r.roundId ?? ''}</td>
+        </tr>
+      `).join('');
+    }
+
+    function dedupeByAddress(rows) {
+      const map = new Map();
+      for (const row of rows) {
+        const key = normalizeAddr(row.address);
+        if (!key) continue;
+        if (!map.has(key)) map.set(key, row);
+      }
+      return [...map.values()];
+    }
+
+    async function fetchPage(sort, limit, offset) {
+      const url = new URL(PROXY_PATH, window.location.origin);
+      url.searchParams.set('sort', sort);
+      url.searchParams.set('limit', String(limit));
+      url.searchParams.set('offset', String(offset));
+
+      const res = await fetch(url.toString(), {
+        method: 'GET',
+        headers: { 'accept': 'application/json' }
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.message || `HTTP ${res.status}`);
+      }
+      return data;
+    }
+
+    function applyAllFilters(rows) {
+      const weekVal = els.weekFilter.value.trim();
+      const addressSet = getAddressSet();
+      const keyword = els.keyword.value.trim().toLowerCase();
+
+      return rows.filter(row => {
+        if (weekVal && String(row.week ?? '') !== weekVal) return false;
+        if (addressSet.size && !addressSet.has(normalizeAddr(row.address))) return false;
+        if (keyword) {
+          const hit = [
+            row.address, row.name, row.grade, row.rank,
+            row.totalPoints, row.weeklyPoints, row.volumeUsd,
+            row.ppRank, row.week, row.roundId
+          ].some(v => String(v ?? '').toLowerCase().includes(keyword));
+          if (!hit) return false;
+        }
+        return true;
+      });
+    }
+
+    async function run() {
+      stopFlag = false;
+      allRows = [];
+      filteredRows = [];
+      lastMeta = { week: '-', roundId: '-' };
+      renderTable([]);
+      updateStats([], 0, 0, Number(els.totalCount.value || 0));
+
+      const sort = els.sort.value;
+      const limit = Math.min(100, Math.max(1, Number(els.perPage.value || 100)));
+      const startOffset = Math.max(0, Number(els.startOffset.value || 0));
+      const totalCount = Math.max(1, Number(els.totalCount.value || 1000));
+      const delayMs = Math.max(0, Number(els.delayMs.value || 0));
+      const maxPages = Math.max(1, Number(els.maxPages.value || 20));
+      const useDedupe = els.dedupe.value === 'yes';
+
+      let currentOffset = startOffset;
+      let pageNum = 0;
+      let rawFetched = 0;
+      let hasMore = true;
+
+      setStatus(`开始抓取...\nsort=${sort}\nlimit=${limit}\nstartOffset=${startOffset}\ntotalCount=${totalCount}`);
+
+      try {
+        while (!stopFlag && hasMore && rawFetched < totalCount && pageNum < maxPages) {
+          pageNum += 1;
+          setStatus(`第 ${pageNum} 页抓取中...\noffset=${currentOffset}\n已抓取=${rawFetched}/${totalCount}`);
+
+          const data = await fetchPage(sort, limit, currentOffset);
+          const entries = Array.isArray(data.entries) ? data.entries : [];
+
+          lastMeta.week = data.week ?? '-';
+          lastMeta.roundId = data.roundId ?? '-';
+
+          const merged = entries.map(row => ({
+            ...row,
+            week: data.week ?? null,
+            roundId: data.roundId ?? null
+          }));
+
+          allRows.push(...merged);
+          if (useDedupe) allRows = dedupeByAddress(allRows);
+
+          hasMore = Boolean(data.hasMore);
+          currentOffset += limit;
+          rawFetched += entries.length;
+
+          filteredRows = applyAllFilters(allRows);
+          updateStats(filteredRows, pageNum, rawFetched, totalCount);
+          renderTable(filteredRows);
+
+          setStatus(
+            `第 ${pageNum} 页完成\n` +
+            `本页返回=${entries.length}\n` +
+            `累计原始=${rawFetched}\n` +
+            `筛选后=${filteredRows.length}\n` +
+            `hasMore=${hasMore}\n` +
+            `week=${data.week ?? '-'} / roundId=${data.roundId ?? '-'}`
+          );
+
+          if (entries.length === 0) break;
+          if (delayMs > 0 && rawFetched < totalCount) await sleep(delayMs);
+        }
+
+        if (stopFlag) {
+          setStatus(`已手动停止。\n当前保留 ${filteredRows.length} 条筛选结果。`);
+        } else {
+          filteredRows = applyAllFilters(allRows);
+          updateStats(filteredRows, pageNum, rawFetched, totalCount);
+          renderTable(filteredRows);
+          setStatus(`抓取完成。\n原始总数 ${allRows.length} 条\n筛选后 ${filteredRows.length} 条`);
+        }
+      } catch (err) {
+        console.error(err);
+        setStatus('抓取失败：\n' + (err?.message || String(err)));
+      }
+    }
+
+    function exportCSV() {
+      const rows = filteredRows.length ? filteredRows : allRows;
+      if (!rows.length) {
+        alert('暂无可导出的数据');
+        return;
+      }
+
+      const headers = ['rank','address','name','totalPoints','weeklyPoints','volumeUsd','grade','ppRank','week','roundId'];
+      const csv = [
+        headers.join(','),
+        ...rows.map(row => headers.map(h => {
+          const val = row[h] ?? '';
+          return `"${String(val).replaceAll('"', '""')}"`;
+        }).join(','))
+      ].join('\n');
+
+      const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `flamy_leaderboard_${els.sort.value}_${Date.now()}.csv`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    async function copyJSON() {
+      const rows = filteredRows.length ? filteredRows : allRows;
+      if (!rows.length) {
+        alert('暂无可复制的数据');
+        return;
+      }
+      await navigator.clipboard.writeText(JSON.stringify(rows, null, 2));
+      alert(`已复制 ${rows.length} 条 JSON 数据`);
+    }
+
+    function refreshFilter() {
+      filteredRows = applyAllFilters(allRows);
+      renderTable(filteredRows);
+      updateStats(
+        filteredRows,
+        Number(els.pageCount.textContent.replace(/,/g, '')) || 0,
+        allRows.length,
+        Number(els.totalCount.value || 0)
+      );
+    }
+
+    els.runBtn.addEventListener('click', run);
+    els.stopBtn.addEventListener('click', () => { stopFlag = true; });
+    els.exportBtn.addEventListener('click', exportCSV);
+    els.copyBtn.addEventListener('click', copyJSON);
+    els.applyFilterBtn.addEventListener('click', refreshFilter);
+    els.resetFilterBtn.addEventListener('click', () => {
+      els.keyword.value = '';
+      els.weekFilter.value = '';
+      els.addressInput.value = '';
+      refreshFilter();
+    });
+  </script>
+</body>
+</html>
